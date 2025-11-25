@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard v3.0 | Threat Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #050505;
+            --bg-card: #0a0a0a;
+            --border-subtle: #222222;
+            --text-main: #ededed;
+            --text-muted: #888888;
+            --accent-red: #ef4444;
+            --accent-green: #22c55e;
+            --accent-blue: #3b82f6;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        .minimal-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            width: 100%;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+        }
+
+        .minimal-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            transition: border-color 0.2s;
+        }
+
+        .minimal-card:hover {
+            border-color: #333;
+        }
+
+        .btn-minimal {
+            background: #111;
+            border: 1px solid #333;
+            color: #ccc;
+            transition: all 0.2s;
+        }
+        .btn-minimal:hover {
+            background: #222;
+            color: white;
+            border-color: #555;
+        }
+
+        .btn-primary {
+            background: white;
+            color: black;
+            font-weight: 600;
+        }
+        .btn-primary:hover {
+            background: #ddd;
+        }
+
+        /* Gauge Animation */
+        .gauge-circle {
+            transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.5s;
+        }
+
+        /* Entropy Bar */
+        .entropy-fill {
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-main); }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="border-b border-white/5 py-4 sticky top-0 bg-[#050505]/90 backdrop-blur-sm z-50">
+        <div class="max-w-5xl mx-auto px-6 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                    <i class="fa-solid fa-shield-cat text-black text-sm"></i>
+                </div>
+                <span class="font-medium tracking-tight">PhishGuard <span class="text-xs text-gray-500 font-normal ml-1">v3.0</span></span>
+            </div>
+            <div class="flex gap-6 text-sm">
+                <button onclick="toggleModal('logModal')" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Log
+                </button>
+                <button onclick="toggleModal('configModal')" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-sliders"></i> Config
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col items-center justify-start pt-16 px-4">
+        
+        <!-- Hero Section -->
+        <div class="text-center max-w-2xl mx-auto mb-10 space-y-3">
+            <h1 class="text-3xl md:text-4xl font-semibold text-white tracking-tight">Verify URL Integrity</h1>
+            <p class="text-gray-500 text-sm md:text-base">Advanced client-side heuristics detecting phishing patterns, obfuscation, and domain entropy.</p>
+        </div>
+
+        <!-- Input Area -->
+        <div class="w-full max-w-2xl space-y-6">
+            <div class="minimal-card rounded-xl p-2 flex items-center gap-3 relative group focus-within:border-gray-500 transition-colors">
+                <div class="pl-4 text-gray-600 group-focus-within:text-white transition-colors">
+                    <i class="fa-solid fa-link"></i>
+                </div>
+                <input type="text" id="urlInput" placeholder="Enter URL for analysis..." 
+                    class="minimal-input py-3" autocomplete="off" onkeypress="handleEnter(event)">
+                <button onclick="analyzeUrl()" class="btn-primary px-6 py-2 rounded-lg text-sm flex items-center gap-2 transition-transform active:scale-95">
+                    Scan <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="flex justify-center gap-3">
+                <button onclick="setInput('https://paypal-secure-login-v2.update-account.com')" class="text-xs px-3 py-1.5 rounded-full border border-white/10 hover:border-white/30 text-gray-400 hover:text-white transition-all">Test Phish</button>
+                <button onclick="setInput('https://www.google.com')" class="text-xs px-3 py-1.5 rounded-full border border-white/10 hover:border-white/30 text-gray-400 hover:text-white transition-all">Test Safe</button>
+                <button onclick="setInput('http://192.168.0.1/admin')" class="text-xs px-3 py-1.5 rounded-full border border-white/10 hover:border-white/30 text-gray-400 hover:text-white transition-all">Test IP</button>
+            </div>
+        </div>
+
+        <!-- Analysis Results (Dynamic) -->
+        <div id="resultContainer" class="w-full max-w-2xl mt-12 hidden fade-in">
+            <div class="minimal-card rounded-xl overflow-hidden">
+                <!-- Status Header -->
+                <div class="p-8 border-b border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="flex items-center gap-6">
+                        <div class="relative w-20 h-20">
+                            <svg class="w-full h-full transform -rotate-90">
+                                <circle cx="40" cy="40" r="36" stroke="#222" stroke-width="6" fill="transparent" />
+                                <circle id="scoreCircle" cx="40" cy="40" r="36" stroke="#ef4444" stroke-width="6" fill="transparent" 
+                                    class="gauge-circle" stroke-dasharray="226" stroke-dashoffset="226" />
+                            </svg>
+                            <span id="scoreText" class="absolute inset-0 flex items-center justify-center font-bold text-lg">0</span>
+                        </div>
+                        <div>
+                            <h2 id="verdictTitle" class="text-xl font-bold text-white mb-1">Analyzing...</h2>
+                            <p id="verdictDesc" class="text-gray-500 text-sm">Processing heuristics...</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="copyJson()" class="btn-minimal px-4 py-2 rounded-lg text-xs font-medium">Copy JSON</button>
+                        <button onclick="resetUI()" class="btn-minimal px-4 py-2 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10">New Scan</button>
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2">
+                    <!-- Feature Vector Analysis -->
+                    <div class="p-6 border-r border-white/5 border-b md:border-b-0">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Feature Vector Analysis</h3>
+                        <ul id="featuresList" class="space-y-3">
+                            <!-- Populated via JS -->
+                        </ul>
+                        <div id="noFeaturesMsg" class="hidden text-xs text-gray-600 italic py-2">No suspicious vectors detected.</div>
+                    </div>
+
+                    <!-- Entropy & Technicals -->
+                    <div class="p-6">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Domain Entropy & Stats</h3>
+                        
+                        <div class="space-y-6">
+                            <!-- Entropy Bar -->
+                            <div>
+                                <div class="flex justify-between text-xs mb-2">
+                                    <span class="text-gray-400">Entropy Score</span>
+                                    <span id="entropyValue" class="text-white font-mono">0.00</span>
+                                </div>
+                                <div class="h-1.5 w-full bg-[#1a1a1a] rounded-full overflow-hidden">
+                                    <div id="entropyBar" class="h-full bg-blue-500 entropy-fill" style="width: 0%"></div>
+                                </div>
+                                <div class="flex justify-between text-[10px] text-gray-600 mt-1">
+                                    <span>Structured</span>
+                                    <span>Random/Garbage</span>
+                                </div>
+                            </div>
+
+                            <!-- Mini Technical Table -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-white/5 p-3 rounded-lg">
+                                    <div class="text-[10px] text-gray-500 uppercase">Protocol</div>
+                                    <div id="protocolVal" class="text-sm font-mono text-white mt-1">HTTPS</div>
+                                </div>
+                                <div class="bg-white/5 p-3 rounded-lg">
+                                    <div class="text-[10px] text-gray-500 uppercase">Length</div>
+                                    <div id="lengthVal" class="text-sm font-mono text-white mt-1">42 chars</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-6 text-center text-gray-600 text-xs">
+        &copy; 2025 PhishGuard Local. No data leaves your browser.
+    </footer>
+
+    <!-- LOG MODAL -->
+    <div id="logModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="minimal-card w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b border-white/5 flex justify-between items-center bg-[#0a0a0a]">
+                <h3 class="font-medium">Scan History</h3>
+                <button onclick="toggleModal('logModal')" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="logList" class="overflow-y-auto p-0 flex-grow bg-[#050505]">
+                <div class="p-8 text-center text-gray-600 text-sm">No recent scans.</div>
+            </div>
+            <div class="p-3 border-t border-white/5 bg-[#0a0a0a]">
+                <button onclick="clearLog()" class="w-full py-2 text-xs text-red-500 hover:text-red-400">Clear History</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIG MODAL -->
+    <div id="configModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="minimal-card w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-white/5 flex justify-between items-center sticky top-0 bg-[#0a0a0a] z-10">
+                <div>
+                    <h3 class="font-medium text-lg">Model Configuration</h3>
+                    <p class="text-xs text-gray-500">Adjust perceptron weights and bias.</p>
+                </div>
+                <button onclick="toggleModal('configModal')" class="text-gray-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="p-6 space-y-8 bg-[#050505]">
+                
+                <!-- Training Section -->
+                <div class="space-y-4">
+                    <h4 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Quick Train</h4>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="trainInput" placeholder="Paste URL to train..." class="flex-grow bg-[#111] border border-[#222] rounded px-3 py-2 text-sm text-white focus:border-gray-500 outline-none">
+                        <div class="flex gap-2">
+                            <button onclick="trainModel(0)" class="px-4 py-2 bg-green-500/10 text-green-500 border border-green-500/20 rounded hover:bg-green-500/20 text-xs font-bold uppercase">Mark Safe</button>
+                            <button onclick="trainModel(1)" class="px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded hover:bg-red-500/20 text-xs font-bold uppercase">Mark Phish</button>
+                        </div>
+                    </div>
+                    <p id="trainFeedback" class="text-xs text-green-500 hidden">Model weights updated successfully.</p>
+                </div>
+
+                <!-- Weights Section -->
+                <div class="space-y-4">
+                    <div class="flex justify-between items-end">
+                        <h4 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Current Weights</h4>
+                        <button onclick="resetModel()" class="text-xs text-red-500 hover:underline">Reset to Default</button>
+                    </div>
+                    <div id="weightsList" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CORE LOGIC ---
+
+        const FEATURE_DEFINITIONS = {
+            hasIP: { name: "Raw IP Address", desc: "Host is an IP address", defaultWeight: 2.5 },
+            longUrl: { name: "Excessive Length", desc: "URL > 75 chars", defaultWeight: 1.2 },
+            tooManyDots: { name: "Subdomain Stacking", desc: "> 3 dots in domain", defaultWeight: 1.5 },
+            hasAtSymbol: { name: "Obfuscated Auth (@)", desc: "Contains '@' symbol", defaultWeight: 3.0 },
+            doubleSlash: { name: "Path Redirection", desc: "Double slash in path", defaultWeight: 1.8 },
+            hasHyphen: { name: "Hyphenated Domain", desc: "Hyphens in hostname", defaultWeight: 0.8 },
+            suspiciousKw: { name: "Suspicious Keyword", desc: "login/verify/secure/update", defaultWeight: 2.2 },
+            isHttps: { name: "HTTPS Protocol", desc: "Uses SSL/TLS", defaultWeight: -0.5 },
+            manySubdomains: { name: "Deep Subdomain", desc: "Complexity > 3 levels", defaultWeight: 1.4 },
+            nonStandardPort: { name: "Non-Standard Port", desc: "Not port 80/443", defaultWeight: 1.5 },
+            highEntropy: { name: "High Entropy Domain", desc: "Randomness > 4.5", defaultWeight: 1.8 } // New Feature
+        };
+
+        let model = {
+            weights: {},
+            bias: -1.5,
+            learningRate: 0.1
+        };
+
+        let scanHistory = [];
+        let lastResult = null; // Store for JSON copy
+
+        function init() {
+            // Load Model
+            const saved = localStorage.getItem('phishGuardModel_v3');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                model.weights = parsed.weights;
+                model.bias = parsed.bias;
+            } else {
+                for (const key in FEATURE_DEFINITIONS) {
+                    model.weights[key] = FEATURE_DEFINITIONS[key].defaultWeight;
+                }
+            }
+            
+            // Load History
+            const hist = localStorage.getItem('phishGuardHistory');
+            if(hist) scanHistory = JSON.parse(hist);
+
+            renderWeights();
+        }
+
+        function calculateEntropy(str) {
+            const len = str.length;
+            const frequencies = {};
+            for (let i = 0; i < len; i++) {
+                const char = str[i];
+                frequencies[char] = (frequencies[char] || 0) + 1;
+            }
+            
+            let entropy = 0;
+            for (const char in frequencies) {
+                const p = frequencies[char] / len;
+                entropy -= p * Math.log2(p);
+            }
+            return entropy;
+        }
+
+        function extractFeatures(url) {
+            let features = {};
+            try {
+                if (!url.startsWith('http')) url = 'http://' + url;
+                const urlObj = new URL(url);
+                const hostname = urlObj.hostname;
+                const path = urlObj.pathname + urlObj.search;
+
+                features.hasIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) ? 1 : 0;
+                features.longUrl = url.length > 75 ? 1 : 0;
+                features.tooManyDots = (hostname.match(/\./g) || []).length > 3 ? 1 : 0;
+                features.hasAtSymbol = url.includes('@') ? 1 : 0;
+                features.doubleSlash = path.includes('//') ? 1 : 0;
+                features.hasHyphen = hostname.includes('-') ? 1 : 0;
+                
+                const susWords = ['login', 'signin', 'verify', 'account', 'update', 'banking', 'secure', 'confirm', 'wallet'];
+                features.suspiciousKw = susWords.some(w => url.toLowerCase().includes(w)) ? 1 : 0;
+                
+                features.isHttps = urlObj.protocol === 'https:' ? 1 : 0;
+                features.manySubdomains = (hostname.split('.').length > 3) ? 1 : 0;
+                features.nonStandardPort = (urlObj.port && urlObj.port !== '80' && urlObj.port !== '443') ? 1 : 0;
+                
+                // Entropy Calculation on Domain only
+                const entropy = calculateEntropy(hostname);
+                features.highEntropy = entropy > 4.5 ? 1 : 0;
+                features._entropyScore = entropy; // Store raw value for UI, not model
+
+                features._meta = {
+                    protocol: urlObj.protocol.replace(':', '').toUpperCase(),
+                    length: url.length,
+                    host: hostname
+                };
+
+            } catch (e) {
+                return null;
+            }
+            return features;
+        }
+
+        function predict(features) {
+            let z = model.bias;
+            for (const key in features) {
+                if(key.startsWith('_')) continue; // Skip meta
+                z += features[key] * (model.weights[key] || 0);
+            }
+            return 1 / (1 + Math.exp(-z));
+        }
+
+        // --- UI FUNCTIONS ---
+
+        function setInput(url) {
+            document.getElementById('urlInput').value = url;
+            analyzeUrl();
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') analyzeUrl();
+        }
+
+        async function analyzeUrl() {
+            const input = document.getElementById('urlInput').value.trim();
+            if (!input) return;
+
+            const features = extractFeatures(input);
+            if (!features) {
+                alert("Invalid URL format");
+                return;
+            }
+
+            // Processing UI
+            const container = document.getElementById('resultContainer');
+            container.classList.remove('hidden');
+            
+            // reset gauge
+            const circle = document.getElementById('scoreCircle');
+            circle.style.strokeDashoffset = 226;
+            circle.style.stroke = '#555';
+
+            // Simulate computation delay for feel
+            await new Promise(r => setTimeout(r, 400));
+
+            const probability = predict(features);
+            const percentage = Math.round(probability * 100);
+
+            // Update UI
+            // 1. Gauge
+            const circumference = 226; 
+            const offset = circumference - (probability * circumference);
+            circle.style.strokeDashoffset = offset;
+            
+            let color = '#22c55e'; // Green
+            let verdict = 'Safe';
+            let desc = 'No significant threats found.';
+
+            if (probability > 0.75) {
+                color = '#ef4444'; // Red
+                verdict = 'High Threat';
+                desc = 'Critical phishing indicators detected.';
+            } else if (probability > 0.4) {
+                color = '#eab308'; // Yellow
+                verdict = 'Suspicious';
+                desc = 'Caution advised. Some irregularities found.';
+            }
+
+            circle.style.stroke = color;
+            document.getElementById('scoreText').innerText = percentage;
+            document.getElementById('scoreText').style.color = color;
+            
+            const vTitle = document.getElementById('verdictTitle');
+            vTitle.innerText = verdict;
+            vTitle.style.color = color;
+            document.getElementById('verdictDesc').innerText = desc;
+
+            // 2. Features List
+            const list = document.getElementById('featuresList');
+            list.innerHTML = '';
+            let hasRisk = false;
+
+            for (const key in features) {
+                if(key.startsWith('_')) continue;
+                if(features[key] === 1) {
+                    // Check if it's a negative weight (safe feature) or positive (risk)
+                    const w = model.weights[key];
+                    if (w > 0) hasRisk = true;
+
+                    const li = document.createElement('li');
+                    li.className = "flex items-start gap-3 text-sm";
+                    li.innerHTML = `
+                        <div class="mt-1 ${w > 0 ? 'text-red-500' : 'text-green-500'}">
+                            <i class="fa-solid ${w > 0 ? 'fa-triangle-exclamation' : 'fa-shield-check'}"></i>
+                        </div>
+                        <div>
+                            <div class="text-gray-300 font-medium">${FEATURE_DEFINITIONS[key].name}</div>
+                            <div class="text-xs text-gray-600">${FEATURE_DEFINITIONS[key].desc}</div>
+                        </div>
+                    `;
+                    list.appendChild(li);
+                }
+            }
+            
+            if(!hasRisk && probability < 0.3) {
+                document.getElementById('noFeaturesMsg').classList.remove('hidden');
+            } else {
+                document.getElementById('noFeaturesMsg').classList.add('hidden');
+            }
+
+            // 3. Entropy & Meta
+            const entropy = features._entropyScore;
+            document.getElementById('entropyValue').innerText = entropy.toFixed(2);
+            const entBar = document.getElementById('entropyBar');
+            // Entropy typically 1-5 for domains. Map 0-6 to 0-100%
+            const entPercent = Math.min((entropy / 6) * 100, 100);
+            entBar.style.width = `${entPercent}%`;
+            
+            if(entropy > 4.5) entBar.classList.replace('bg-blue-500', 'bg-red-500');
+            else if(entropy > 3.5) entBar.classList.replace('bg-blue-500', 'bg-yellow-500');
+            else entBar.className = 'h-full entropy-fill bg-blue-500';
+
+            document.getElementById('protocolVal').innerText = features._meta.protocol;
+            document.getElementById('lengthVal').innerText = features._meta.length + ' chars';
+
+            // Save Result for Copy/Log
+            lastResult = {
+                url: input,
+                score: percentage,
+                verdict: verdict,
+                timestamp: new Date().toISOString(),
+                features: features
+            };
+            
+            addToLog(lastResult);
+        }
+
+        // --- HISTORY & UTILS ---
+
+        function addToLog(result) {
+            scanHistory.unshift(result); // Add to top
+            if(scanHistory.length > 50) scanHistory.pop(); // Max 50
+            localStorage.setItem('phishGuardHistory', JSON.stringify(scanHistory));
+            renderLog();
+        }
+
+        function renderLog() {
+            const container = document.getElementById('logList');
+            if(scanHistory.length === 0) {
+                container.innerHTML = '<div class="p-8 text-center text-gray-600 text-sm">No recent scans.</div>';
+                return;
+            }
+            
+            container.innerHTML = '';
+            scanHistory.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'p-3 border-b border-white/5 hover:bg-white/5 transition-colors flex justify-between items-center';
+                
+                let colorClass = 'text-green-500';
+                if(item.score > 75) colorClass = 'text-red-500';
+                else if(item.score > 40) colorClass = 'text-yellow-500';
+
+                div.innerHTML = `
+                    <div class="overflow-hidden">
+                        <div class="text-sm text-gray-300 truncate w-48 sm:w-64 font-mono">${item.url}</div>
+                        <div class="text-[10px] text-gray-600">${new Date(item.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold ${colorClass}">${item.score}%</div>
+                        <div class="text-[10px] text-gray-500">${item.verdict}</div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function clearLog() {
+            scanHistory = [];
+            localStorage.removeItem('phishGuardHistory');
+            renderLog();
+        }
+
+        function copyJson() {
+            if(!lastResult) return;
+            const data = JSON.stringify(lastResult, null, 2);
+            navigator.clipboard.writeText(data);
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "Copied!";
+            setTimeout(() => btn.innerText = originalText, 1500);
+        }
+
+        function resetUI() {
+            document.getElementById('urlInput').value = '';
+            document.getElementById('resultContainer').classList.add('hidden');
+        }
+
+        // --- CONFIG & TRAINING ---
+
+        function trainModel(label) {
+            const input = document.getElementById('trainInput');
+            const url = input.value.trim();
+            if(!url) return;
+            
+            const features = extractFeatures(url);
+            if(!features) return;
+
+            // Simple Perceptron Update
+            const prediction = predict(features);
+            const error = label - prediction;
+
+            for (const key in features) {
+                if(key.startsWith('_')) continue;
+                model.weights[key] += model.learningRate * error * features[key];
+            }
+            model.bias += model.learningRate * error;
+
+            // Save
+            localStorage.setItem('phishGuardModel_v3', JSON.stringify(model));
+            
+            // Feedback
+            input.value = '';
+            renderWeights();
+            const fb = document.getElementById('trainFeedback');
+            fb.classList.remove('hidden');
+            setTimeout(() => fb.classList.add('hidden'), 2000);
+        }
+
+        function renderWeights() {
+            const container = document.getElementById('weightsList');
+            container.innerHTML = '';
+            
+            // Bias
+            const biasDiv = document.createElement('div');
+            biasDiv.className = 'bg-[#111] p-3 rounded border border-[#222] flex justify-between items-center';
+            biasDiv.innerHTML = `<span class="text-xs text-gray-500 uppercase">Base Bias</span> <span class="font-mono text-sm text-white">${model.bias.toFixed(3)}</span>`;
+            container.appendChild(biasDiv);
+
+            // Weights
+            for(const key in model.weights) {
+                const w = model.weights[key];
+                const def = FEATURE_DEFINITIONS[key];
+                
+                const div = document.createElement('div');
+                div.className = 'bg-[#111] p-3 rounded border border-[#222]';
+                
+                // Visual bar
+                const barColor = w > 0 ? 'bg-red-500' : 'bg-green-500';
+                const width = Math.min(Math.abs(w) * 20, 100);
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs text-gray-400" title="${def.desc}">${def.name}</span>
+                        <span class="font-mono text-xs ${w > 0 ? 'text-red-400' : 'text-green-400'}">${w.toFixed(3)}</span>
+                    </div>
+                    <div class="w-full bg-[#222] h-1 rounded overflow-hidden">
+                        <div class="h-full ${barColor}" style="width: ${width}%"></div>
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        function resetModel() {
+            localStorage.removeItem('phishGuardModel_v3');
+            init();
+        }
+
+        // --- MODAL SYSTEM ---
+
+        function toggleModal(id) {
+            const el = document.getElementById(id);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                if(id === 'logModal') renderLog();
+                if(id === 'configModal') renderWeights();
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+
+        // Init
+        init();
+
+    </script>
+</body>
+</html>
